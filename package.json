@@ -1,0 +1,16 @@
+{
+  "name": "automation-scripts",
+  "version": "1.0.0",
+  "description": "Automation utilities for GitHub cat facts and Styxmarket uploads.",
+  "main": "main.js",
+  "type": "commonjs",
+  "scripts": {
+    "catfacts": "node main.js",
+    "styxmarket:upload": "node scripts/styxmarketUploader.js"
+  },
+  "dependencies": {
+    "@octokit/rest": "^21.0.2",
+    "puppeteer-core": "^22.6.5",
+    "xlsx": "^0.18.5"
+  }
+}
