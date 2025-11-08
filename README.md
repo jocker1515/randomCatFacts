@@ -32,3 +32,33 @@ Expiration" и прожимаем все галочки. Копируем клю
 ![telegram-cloud-photo-size-4-5894181966641737981-w](https://github.com/hhermesa/randomCatFacts/assets/56301001/1962142c-a89f-4ce6-a189-c55dd1560e79)
 
 9. Жмем Deploy и сохраняем Workflow.
+
+## Автоматическая загрузка товаров на Styxmarket
+
+Скрипт `scripts/styxmarketUploader.js` автоматизирует загрузку товара через личный кабинет маркетплейса.
+
+### Предварительные требования
+
+1. Установите зависимости проекта: `npm install`.
+2. Запустите Chrome с нужным аккаунтом и включенной удалённой отладкой, например:
+   ```
+   chrome.exe --remote-debugging-port=9222
+   ```
+3. Убедитесь, что Excel файл (`mega_full_report1.xlsx`) доступен по указанному пути.
+
+### Запуск
+
+```
+node scripts/styxmarketUploader.js --excel "D:\\gemini\\Telegram-shop-main\\Telegram-shop-main\\test script\\mega_full_report1.xlsx"
+```
+
+Дополнительно можно указать каталог для txt файлов `--output "./styxmarket_files"` и собственный адрес удалённой отладки `--chrome "http://127.0.0.1:9222"`.
+
+### Что делает скрипт
+
+- считывает первый товар из Excel (колонки `file name`, `Price`, `textarea`, `link`);
+- создаёт txt-файл с содержимым из `link` и сохраняет его в выбранной папке;
+- подключается к уже запущенному Chrome через DevTools Protocol;
+- заполняет форму на https://styxmarket.com/shop/my/ и загружает созданный файл.
+
+В консоли выводятся шаги выполнения и результат загрузки.
