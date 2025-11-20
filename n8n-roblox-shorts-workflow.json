@@ -1,0 +1,752 @@
+{
+  "name": "Roblox Shorts AI Reaction Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 3
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Cron Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://www.googleapis.com/youtube/v3/search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "popular roblox videos"
+            },
+            {
+              "name": "part",
+              "value": "snippet"
+            },
+            {
+              "name": "maxResults",
+              "value": 5
+            },
+            {
+              "name": "order",
+              "value": "viewCount"
+            },
+            {
+              "name": "type",
+              "value": "video"
+            },
+            {
+              "name": "key",
+              "value": "YOUR_YOUTUBE_API_KEY"
+            },
+            {
+              "name": "relevanceLanguage",
+              "value": "en"
+            },
+            {
+              "name": "region",
+              "value": "US"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "youtube-search",
+      "name": "YouTube Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://www.googleapis.com/youtube/v3/videos",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "id",
+              "value": "={{ $node[\"YouTube Search\"].json.items[0].id.videoId }}"
+            },
+            {
+              "name": "part",
+              "value": "statistics,snippet,contentDetails"
+            },
+            {
+              "name": "key",
+              "value": "YOUR_YOUTUBE_API_KEY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-video-stats",
+      "name": "Get Video Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-views",
+              "leftValue": "={{ Number($node[\"Get Video Stats\"].json.items[0].statistics.viewCount) }}",
+              "rightValue": 500000,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-views",
+      "name": "Check Views",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        860,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "create",
+        "requestBody": {
+          "model": "gpt-4",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a creative scriptwriter specializing in AI avatar reactions for Roblox videos. Create engaging, entertaining reaction scripts that are 40-60 seconds of spoken dialogue. The avatar will be placed in the corner of the original Roblox video. Include natural reactions: \"Wow!\", \"No way!\", \"That's insane!\", etc. Mix technical observations with emotional responses."
+            },
+            {
+              "role": "user",
+              "content": "=Write a reaction script for an AI avatar reacting to this Roblox video:\n\nTitle: {{ $node[\"Get Video Stats\"].json.items[0].snippet.title }}\n\nVideo Description: {{ $node[\"Get Video Stats\"].json.items[0].snippet.description }}\n\nRequirements:\n- 40-60 seconds of dialogue when spoken at normal pace\n- Natural reactions and expressions\n- Mix of amazement, humor, and observations\n- Suitable for YouTube Shorts\n- No background music needed (will be added separately)\n\nWrite only the dialogue, no stage directions or descriptions."
+            }
+          ],
+          "temperature": 0.8
+        },
+        "options": {}
+      },
+      "id": "generate-script",
+      "name": "Generate Script",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        1060,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": false,
+        "values": {
+          "string": [
+            {
+              "name": "videoId",
+              "value": "={{ $node[\"Get Video Stats\"].json.items[0].id }}"
+            },
+            {
+              "name": "title",
+              "value": "={{ $node[\"Get Video Stats\"].json.items[0].snippet.title }}"
+            },
+            {
+              "name": "url",
+              "value": "={{ \"https://www.youtube.com/watch?v=\" + $node[\"Get Video Stats\"].json.items[0].id }}"
+            },
+            {
+              "name": "viewCount",
+              "value": "={{ $node[\"Get Video Stats\"].json.items[0].statistics.viewCount }}"
+            },
+            {
+              "name": "likeCount",
+              "value": "={{ $node[\"Get Video Stats\"].json.items[0].statistics.likeCount }}"
+            },
+            {
+              "name": "duration",
+              "value": "={{ $node[\"Get Video Stats\"].json.items[0].contentDetails.duration }}"
+            },
+            {
+              "name": "script",
+              "value": "={{ $node[\"Generate Script\"].json.choices[0].message.content }}"
+            }
+          ],
+          "boolean": [
+            {
+              "name": "has_background_video",
+              "value": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "prepare-for-processing",
+      "name": "Prepare for Processing",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [
+        1260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * Setup Heygen - Формирование параметров для HeyGen API\n * Получает данные из \"Prepare for Processing\" и подготавливает для передачи\n */\n\nconst data = $node[\"Prepare for Processing\"].json;\n\n// Валидация входных данных\nif (!data.url || !data.script) {\n  throw new Error(\"Missing required data: url or script from Prepare for Processing\");\n}\n\n// Основной объект конфигурации\nconst setup = {\n  // HeyGen API Credentials\n  heygen_api_key: \"sk_V2_hgu_kNnLjncEJhB_1qVIMbQNr4XSn0sitR4avTe9hFBQ1SsD\",\n  avatar_id: \"4798c598a7d048e0b314e0cb5f2261a2\",\n  voice_id: \"f38a635bee7a4d1f9b0a654a31d050d2\",\n  \n  // Данные видео\n  videoId: data.videoId || \"\",\n  title: data.title || \"Roblox Video Reaction\",\n  url: data.url, // YouTube URL\n  script: data.script,\n  viewCount: data.viewCount || \"0\",\n  likeCount: data.likeCount || \"0\",\n  \n  // Параметры фонового видео\n  has_background_video: data.has_background_video === true,\n  background_video_url: data.url, // ← ГЛАВНАЯ ПОДСТАНОВКА URL\n  \n  // Размеры для Shorts (9:16 vertical)\n  dimension: {\n    width: 720,\n    height: 1280\n  },\n  aspect_ratio: \"9:16\",\n  \n  // Параметры качества видео\n  quality: {\n    bitrate: \"5000k\",\n    fps: 30,\n    codec: \"h264\"\n  },\n  \n  // Background видео параметры\n  background_style: {\n    play_style: \"loop\",\n    fit: \"cover\",\n    opacity: 1\n  },\n  \n  // Avatar параметры\n  avatar_position: {\n    x: 0.8,\n    y: 0.5,\n    width: 0.35,\n    height: 0.35\n  }\n};\n\n// Debug логирование\nconsole.log(\"=== Setup Heygen Config ===\");\nconsole.log(\"Video ID:\", setup.videoId);\nconsole.log(\"Background URL:\", setup.background_video_url);\nconsole.log(\"Has Background:\", setup.has_background_video);\nconsole.log(\"Script length:\", setup.script?.length, \"chars\");\nconsole.log(\"========================\");\n\nreturn setup;"
+      },
+      "id": "setup-heygen",
+      "name": "Setup Heygen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-background",
+              "leftValue": "={{ $node[\"Setup Heygen\"].json.has_background_video }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-background",
+      "name": "If",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.heygen.com/v2/video/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer sk_V2_hgu_kNnLjncEJhB_1qVIMbQNr4XSn0sitR4avTe9hFBQ1SsD"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "video_inputs",
+              "value": "=[{\"character\": {\"type\": \"avatar\", \"avatar_id\": \"4798c598a7d048e0b314e0cb5f2261a2\", \"scale\": 1, \"position\": {\"x\": {{ $node[\"Setup Heygen\"].json.avatar_position.x }}, \"y\": {{ $node[\"Setup Heygen\"].json.avatar_position.y }}}}, \"voice\": {\"type\": \"text\", \"input_text\": {{ JSON.stringify($node[\"Setup Heygen\"].json.script) }}, \"voice_id\": \"f38a635bee7a4d1f9b0a654a31d050d2\"}}}]"
+            },
+            {
+              "name": "background",
+              "value": "={\"type\": \"video\", \"video_url\": \"{{ $node['Setup Heygen'].json.background_video_url }}\", \"play_style\": \"loop\", \"fit\": \"cover\", \"opacity\": 1, \"mute\": true}"
+            },
+            {
+              "name": "aspect_ratio",
+              "value": "9:16"
+            },
+            {
+              "name": "dimension",
+              "value": "={\"width\": 720, \"height\": 1280}"
+            },
+            {
+              "name": "quality",
+              "value": "high"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-avatar-with-background",
+      "name": "Create Avatar Video WITH Background Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1860,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.heygen.com/v2/video/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer sk_V2_hgu_kNnLjncEJhB_1qVIMbQNr4XSn0sitR4avTe9hFBQ1SsD"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "video_inputs",
+              "value": "=[{\"character\": {\"type\": \"avatar\", \"avatar_id\": \"4798c598a7d048e0b314e0cb5f2261a2\", \"scale\": 1, \"position\": {\"x\": 0.5, \"y\": 0.5}}}, \"voice\": {\"type\": \"text\", \"input_text\": {{ JSON.stringify($node[\"Setup Heygen\"].json.script) }}, \"voice_id\": \"f38a635bee7a4d1f9b0a654a31d050d2\"}}}]"
+            },
+            {
+              "name": "background",
+              "value": "={\"type\": \"color\", \"color\": \"#1F1F1F\", \"opacity\": 1}"
+            },
+            {
+              "name": "aspect_ratio",
+              "value": "9:16"
+            },
+            {
+              "name": "dimension",
+              "value": "={\"width\": 720, \"height\": 1280}"
+            },
+            {
+              "name": "quality",
+              "value": "high"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-avatar-without-background",
+      "name": "Create Avatar Video WITHOUT Background Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1860,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll"
+      },
+      "id": "merge",
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        2060,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 60,
+        "unit": "seconds"
+      },
+      "id": "wait",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        2260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.heygen.com/v2/video/{{ $node[\"Merge\"].json.data.video_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer sk_V2_hgu_kNnLjncEJhB_1qVIMbQNr4XSn0sitR4avTe9hFBQ1SsD"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "response": {
+                "fullResponse": true
+              }
+            }
+          }
+        }
+      },
+      "id": "get-avatar-video",
+      "name": "Get Avatar Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-video-status",
+              "leftValue": "={{ $node[\"Get Avatar Video\"].json.data.status }}",
+              "rightValue": "completed",
+              "operator": {
+                "type": "string",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-video-done",
+      "name": "If Video Done",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "create",
+        "requestBody": {
+          "model": "gpt-3.5-turbo",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a professional YouTube content creator specializing in short-form vertical videos and Roblox reactions. Create engaging YouTube Shorts descriptions that are catchy, SEO-optimized, and include relevant hashtags. Keep descriptions under 5000 characters."
+            },
+            {
+              "role": "user",
+              "content": "=Create an engaging YouTube Shorts description for a viral reaction video:\n\nTitle: {{ $node[\"Prepare for Processing\"].json.title }}\nVideo Type: Roblox Video Reaction\nOriginal Views: {{ $node[\"Prepare for Processing\"].json.viewCount }}\nDuration: 60 seconds (Shorts format)\n\nRequirements:\n1. Start with hook that makes people want to watch\n2. Include 2-3 relevant hashtags at the end\n3. Add call-to-action (like, subscribe, comment)\n4. Mention it's an AI-generated reaction\n5. Add the fact that it's a Roblox video reaction\n\nMake it viral-friendly and engaging!"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "options": {}
+      },
+      "id": "generate-yt-description",
+      "name": "Generate YT Description",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        2860,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://www.googleapis.com/youtube/v3/videos?part=snippet,status,processingDetails",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_YOUTUBE_ACCESS_TOKEN"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "snippet",
+              "value": "={\"title\": \"{{ $node['Prepare for Processing'].json.title }} 🤖 AI Reaction\", \"description\": {{ JSON.stringify($node[\"Generate YT Description\"].json.choices[0].message.content) }}, \"tags\": [\"roblox\", \"shorts\", \"reaction\", \"ai\", \"viral\", \"gaming\"], \"categoryId\": \"20\", \"defaultLanguage\": \"en\", \"defaultAudioLanguage\": \"en\"}"
+            },
+            {
+              "name": "status",
+              "value": "={\"privacyStatus\": \"public\", \"selfDeclaredMadeForKids\": false, \"embeddable\": true, \"publicStatsViewable\": true}"
+            },
+            {
+              "name": "processingDetails",
+              "value": "={\"processingStatus\": \"processing\"}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "upload-to-youtube",
+      "name": "Upload to YouTube",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        3060,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "seconds"
+      },
+      "id": "wait-retry",
+      "name": "Wait Retry",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        2660,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Cron Trigger": {
+      "main": [
+        [
+          {
+            "node": "YouTube Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "YouTube Search": {
+      "main": [
+        [
+          {
+            "node": "Get Video Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Video Stats": {
+      "main": [
+        [
+          {
+            "node": "Check Views",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Views": {
+      "main": [
+        [
+          {
+            "node": "Generate Script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Script": {
+      "main": [
+        [
+          {
+            "node": "Prepare for Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare for Processing": {
+      "main": [
+        [
+          {
+            "node": "Setup Heygen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup Heygen": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Create Avatar Video WITH Background Video",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Avatar Video WITHOUT Background Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Avatar Video WITH Background Video": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Avatar Video WITHOUT Background Video": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Get Avatar Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Avatar Video": {
+      "main": [
+        [
+          {
+            "node": "If Video Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Video Done": {
+      "main": [
+        [
+          {
+            "node": "Generate YT Description",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Retry": {
+      "main": [
+        [
+          {
+            "node": "Get Avatar Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate YT Description": {
+      "main": [
+        [
+          {
+            "node": "Upload to YouTube",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-15T10:30:00.000Z",
+  "versionId": "1"
+}
